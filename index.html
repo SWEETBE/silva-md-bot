@@ -4195,7 +4195,7 @@ async function sendAI(){
       const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+':generateContent?key='+encodeURIComponent(key);
       let r;
       try{ r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body}); }
-      catch(){ lastErr='Hakuna muunganiko wa mtandao.'; break; }
+      catch(fe){ lastErr='Hakuna muunganiko wa mtandao.'; break; }
       const d=await r.json().catch(()=>({}));
       if(r.ok){
         jibu=d?.candidates?.[0]?.content?.parts?.map(p=>p?.text).filter(Boolean).join('')||'';
