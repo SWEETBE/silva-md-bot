@@ -4466,7 +4466,7 @@ async function init(){
     const sessionPromise = supa.auth.getSession();
     const timeoutPromise = new Promise((_,reject) => setTimeout(()=>reject(new Error('timeout')), 5000));
     const {data:{session}} = await Promise.race([sessionPromise, timeoutPromise]);
-    hideSplash(); // Funga splash baada ya session kupatikana
+    hideSplash();
 
     if(session?.user && !_appEntered){
       _appEntered = true;
@@ -4499,13 +4499,15 @@ async function init(){
   }catch(e){ console.warn('init getSession:', e.message); hideSplash(); }
 
   // Hakuna session halisi — futa cache na onyesha login
+  hideSplash();
   if(!_appEntered){
-    hideSplash();
     DB.clearUserData();
     DB.set('cuid', null);
     try{ qs('auth-screen')?.classList.add('on'); goStep(1); }catch(e){}
   }
 }
+// Fallback — kama init imeshindwa, funga splash baada ya sekunde 8
+setTimeout(()=>{ hideSplash(); if(!_appEntered){ try{ qs('auth-screen')?.classList.add('on'); goStep(1); }catch(e){} } }, 8000);
 init();
 
 // ═══════════════════════════════════════
