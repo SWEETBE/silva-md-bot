@@ -1457,25 +1457,9 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 
 // ── Iita Supabase Edge Function ──
 async function callEdgeFunction(fnName, payload) {
-  const url = `${SUPA_URL}/functions/v1/${fnName}`;
-  let res;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPA_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch(e) {
-    throw new Error('Hakuna muunganiko wa mtandao au Edge Function haijadeployed.');
-  }
-  if(!res.ok) {
-    const txt = await res.text().catch(()=>'');
-    throw new Error(`Edge Function '${fnName}' ilirudisha hitilafu (${res.status}): ${txt||'Jibu tupu'}`);
-  }
-  return res.json();
+  const { data, error } = await supa.functions.invoke(fnName, { body: payload });
+  if(error) throw new Error(error.message || `Edge Function '${fnName}' ilishindwa.`);
+  return data;
 }
 
 // ── Tuma SMS kupitia Twilio ──
