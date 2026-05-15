@@ -4197,13 +4197,12 @@ async function sendAI(){
       .join('\n');
     const promptFull = [_aiCtx, histTxt].filter(Boolean).join('\n\n');
     let jibu = '';
-    // Jaribu Edge Function kwanza (key iko server-side), fallback Gemini direct
+    // Jaribu Edge Function kwanza (key salama server-side)
     try {
       const { data, error } = await supa.functions.invoke('ai-chat', {
         body: { prompt: promptFull, model: GEMINI_MODEL, generationConfig: { temperature: 0.6, maxOutputTokens: 500 } }
       });
-      if(error) throw new Error(error.message);
-      if(data?.text) jibu = data.text;
+      if(!error && data?.text) jibu = data.text;
     } catch(_ef){}
     // Fallback: Gemini moja kwa moja
     if(!jibu){
@@ -4252,6 +4251,15 @@ function clearAIChat(){
 }
 
 function aiPrompt(q){ if(_aiLoading) return; qs('ai-input').value=q; sendAI(); }
+
+function clearAIChat(){
+  _aiHistory = [];
+  const box = qs('ai-chat-box');
+  if(box) box.innerHTML = '';
+  loadAI();
+}
+
+function aiPrompt(q){ qs('ai-input').value=q; sendAI(); }
 
 // Badilisha quick prompts kulingana na role
 function updateAIChips(){
@@ -4466,7 +4474,7 @@ async function init(){
     const sessionPromise = supa.auth.getSession();
     const timeoutPromise = new Promise((_,reject) => setTimeout(()=>reject(new Error('timeout')), 5000));
     const {data:{session}} = await Promise.race([sessionPromise, timeoutPromise]);
-    hideSplash();
+    hideSplash(); // Funga splash baada ya session kupatikana
 
     if(session?.user && !_appEntered){
       _appEntered = true;
@@ -4496,7 +4504,7 @@ async function init(){
         DB.clearUserData();
       }
     }
-  }catch(e){ console.warn('init getSession:', e.message); hideSplash(); }
+  }catch(e){ console.warn('init getSession:', e.message); }
 
   // Hakuna session halisi — futa cache na onyesha login
   hideSplash();
@@ -4506,7 +4514,7 @@ async function init(){
     try{ qs('auth-screen')?.classList.add('on'); goStep(1); }catch(e){}
   }
 }
-// Fallback — kama init imeshindwa, funga splash baada ya sekunde 8
+// Fallback — splash ifunguke baada ya sekunde 8 bila kujali
 setTimeout(()=>{ hideSplash(); if(!_appEntered){ try{ qs('auth-screen')?.classList.add('on'); goStep(1); }catch(e){} } }, 8000);
 init();
 
