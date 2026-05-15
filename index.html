@@ -4184,22 +4184,33 @@ async function sendAI(){
       .map(m=>(m.role==='user'?'Mtumiaji':'Mshauri')+': '+m.content)
       .join('\n');
     const promptFull = [_aiCtx, histTxt].filter(Boolean).join('\n\n');
-    const res = await callEdgeFunction('ai-chat', {
-      prompt: promptFull,
-      model: GEMINI_MODEL,
-      generationConfig: { temperature: 0.6, maxOutputTokens: 500 }
+    const key = GEMINI_API_KEY.trim();
+    const body = JSON.stringify({
+      contents:[{role:'user',parts:[{text:promptFull}]}],
+      generationConfig:{temperature:0.6,maxOutputTokens:500}
     });
-    if(!res || res.error) throw new Error(res?.error || 'Jibu tupu kutoka kwa AI.');
-    const jibu = res.text || '';
-    // Remove typing indicator
-    const typing = document.getElementById('ai-typing');
-    if(typing) typing.remove();
-    // Add AI reply to history and display
+    const tryModels=[...new Set([GEMINI_MODEL,'gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-flash'])];
+    let jibu='', lastErr='';
+    for(const m of tryModels){
+      const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+':generateContent?key='+encodeURIComponent(key);
+      let r;
+      try{ r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body}); }
+      catch(){ lastErr='Hakuna muunganiko wa mtandao.'; break; }
+      const d=await r.json().catch(()=>({}));
+      if(r.ok){
+        jibu=d?.candidates?.[0]?.content?.parts?.map(p=>p?.text).filter(Boolean).join('')||'';
+        if(jibu)break;
+        lastErr=d?.error?.message||'Jibu tupu.';
+      }else{
+        lastErr=d?.error?.message||d?.message||('HTTP '+r.status);
+      }
+    }
+    if(!jibu) throw new Error(lastErr||'Hakuna modeli iliyofanya kazi.');
+    document.querySelectorAll('.ai-typing-indicator').forEach(el=>el.remove());
     _aiHistory.push({role:'assistant', content: jibu});
     _aiAddMsg('ai', jibu, true);
   }catch(e){
-    const typing = document.getElementById('ai-typing');
-    if(typing) typing.remove();
+    document.querySelectorAll('.ai-typing-indicator').forEach(el=>el.remove());
     _aiAddMsg('ai', '❌ '+(e?.message || 'Tatizo la mtandao. Angalia muunganiko wako wa internet.'), false);
   }finally{
     if(btn){ btn.disabled=false; btn.style.opacity='1'; }
