@@ -1462,11 +1462,14 @@ async function callEdgeFunction(fnName, payload) {
   try {
     res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPA_KEY}`,
+      },
       body: JSON.stringify(payload),
     });
   } catch(e) {
-    throw new Error('Hakuna muunganiko au Edge Function haijadeployed.');
+    throw new Error('Hakuna muunganiko wa mtandao.');
   }
   if(!res.ok) {
     const txt = await res.text().catch(()=>'');
@@ -1497,7 +1500,7 @@ async function sendWhatsApp(to, message) {
     window.open('https://wa.me/'+to.replace(/\D/g,'')+'?text='+encodeURIComponent(message),'_blank');
   }
 }
-// Gemini inaitwa kupitia Supabase Edge Function 'ai-chat' — key haiko hapa
+const GEMINI_API_KEY = 'AIzaSyDV78CWH3f5cUTykiwvTbonJgj-obTYhkA';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // ═══════════════════════════════════════
@@ -4193,14 +4196,29 @@ async function sendAI(){
       .map(m=>(m.role==='user'?'Mtumiaji':'Mshauri')+': '+m.content)
       .join('\n');
     const promptFull = [_aiCtx, histTxt].filter(Boolean).join('\n\n');
-    const res = await callEdgeFunction('ai-chat', {
-      prompt: promptFull,
-      model: GEMINI_MODEL,
-      generationConfig: { temperature: 0.6, maxOutputTokens: 500 }
+    const key = GEMINI_API_KEY.trim();
+    const body = JSON.stringify({
+      contents:[{role:'user',parts:[{text:promptFull}]}],
+      generationConfig:{temperature:0.6,maxOutputTokens:500}
     });
-    if(!res || res.error) throw new Error(res?.error || 'Jibu tupu kutoka kwa AI.');
-    const jibu = res.text || '';
-    if(!jibu) throw new Error('AI haijarudisha jibu. Jaribu tena.');
+    const fallbackModels=['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-flash-preview-05-20','gemini-1.5-flash-002','gemini-1.5-flash-8b'];
+    const tryModels=[...new Set([GEMINI_MODEL,...fallbackModels])];
+    let jibu='', lastErr='';
+    for(const m of tryModels){
+      const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+':generateContent?key='+encodeURIComponent(key);
+      let r;
+      try{ r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body}); }
+      catch(fe){ lastErr='Hakuna muunganiko wa mtandao.'; break; }
+      const d=await r.json().catch(()=>({}));
+      if(r.ok){
+        jibu=d?.candidates?.[0]?.content?.parts?.map(p=>p?.text).filter(Boolean).join('')||'';
+        if(jibu)break;
+        lastErr=d?.error?.message||'Jibu tupu.';
+      }else{
+        lastErr=d?.error?.message||d?.message||('HTTP '+r.status);
+      }
+    }
+    if(!jibu) throw new Error(lastErr||'Hakuna modeli iliyofanya kazi.');
     _aiRemoveTyping();
     _aiHistory.push({role:'assistant', content: jibu});
     _aiAddMsg('ai', jibu, true);
