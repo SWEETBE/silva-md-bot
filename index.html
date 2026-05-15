@@ -821,7 +821,7 @@ setTimeout(hideSplash, 6000);
             <div style="font-size:11px;color:rgba(255,255,255,.45);margin-top:4px;display:flex;align-items:center;gap:6px">
               <span style="width:7px;height:7px;background:#00c47d;border-radius:50%;display:inline-block;box-shadow:0 0 8px rgba(0,196,125,.8);flex-shrink:0"></span>
               <span>🏪</span>
-              <span id="s-biz-hdr" style="color:rgba(255,255,255,.6)">Biashara yako</span>
+              <span id="s-biz" style="color:rgba(255,255,255,.6)">Biashara yako</span>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
@@ -1458,23 +1458,14 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 // ── Iita Supabase Edge Function ──
 async function callEdgeFunction(fnName, payload) {
   const url = `${SUPA_URL}/functions/v1/${fnName}`;
-  let res;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPA_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch(e) {
-    throw new Error('Hakuna muunganiko wa mtandao.');
-  }
-  if(!res.ok) {
-    const txt = await res.text().catch(()=>'');
-    throw new Error(`Edge Function '${fnName}' hitilafu (${res.status}): ${txt||'Jibu tupu'}`);
-  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPA_KEY}`,
+    },
+    body: JSON.stringify(payload),
+  });
   return res.json();
 }
 
@@ -2835,7 +2826,7 @@ async function sNav(pg,btn){
 function loadSDash(){
   if(!CU)return;
   set('s-name',CU.fname+' '+CU.lname);
-  set('s-biz-hdr',CU.bizname||'Biashara yako');
+  set('s-biz',CU.bizname||'Biashara yako');
   const B=DB.get('bidhaa',[]).filter(b=>b.oid===CU.id);
   // Hesabu mauzo YOTE yaliyokamilika: POS (method!=Agizo) + maagizo ya done
   const allM=DB.get('mauzo',[]).filter(m=>m.oid===CU.id);
@@ -3773,12 +3764,12 @@ async function confirmBOrder(){
   if((_selectedDelivery.type==='self'||_selectedDelivery.type==='boda')){
     const addr=qs('del-addr-input')?.value?.trim()||'';
     if(!addr){
-      if(qs('delivery-err')) qs('delivery-err').textContent='⚠ Weka anwani yako kamili!';
+      if(qs('del-err')) qs('del-err').textContent='⚠ Weka anwani yako kamili!';
       return;
     }
     _selectedDelivery.address=addr;
   }
-  if(qs('delivery-err')) qs('delivery-err').textContent='';
+  if(qs('del-err')) qs('del-err').textContent='';
 
   const itemsTotal = bcart.reduce((s,c)=>s+c.bei*c.qty,0);
   const deliveryFee = _selectedDelivery.fee||0;
@@ -4087,9 +4078,9 @@ async function _doRating(id){
 // ══════════════════════════════
 // AI MSHAURI
 // ══════════════════════════════
+// ── AI chat history (ndani ya session) ──
 let _aiHistory = [];
 let _aiCtx = '';
-let _aiLoading = false;
 
 function _aiAddMsg(role, text, isHtml=false){
   const box = qs('ai-chat-box');
@@ -4118,15 +4109,11 @@ function _aiAddMsg(role, text, isHtml=false){
   box.scrollTop = box.scrollHeight;
 }
 
-function _aiRemoveTyping(){
-  document.querySelectorAll('.ai-typing-indicator').forEach(el=>el.remove());
-}
-
 function _aiShowTyping(){
   const box = qs('ai-chat-box');
   if(!box) return;
   const div = document.createElement('div');
-  div.className = 'ai-typing-indicator';
+  div.id = 'ai-typing';
   div.style.cssText = 'display:flex;gap:8px;align-items:flex-start';
   div.innerHTML = `<div style="width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,#a78bfa,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">🤖</div><div style="padding:10px 14px;background:var(--bg2);border-radius:4px 14px 14px 14px;border:1px solid var(--sur2);display:flex;gap:5px;align-items:center"><span style="width:7px;height:7px;background:var(--pur);border-radius:50%;animation:bounce 1.2s .0s infinite alternate"></span><span style="width:7px;height:7px;background:var(--pur);border-radius:50%;animation:bounce 1.2s .2s infinite alternate"></span><span style="width:7px;height:7px;background:var(--pur);border-radius:50%;animation:bounce 1.2s .4s infinite alternate"></span></div>`;
   box.appendChild(div);
@@ -4176,19 +4163,20 @@ Help the customer make smart buying decisions. Keep replies concise (3–6 lines
 }
 
 async function sendAI(){
-  if(_aiLoading) return;
   const inp = qs('ai-input');
   const q = inp.value.trim();
   if(!q) return;
   inp.value = '';
-  _aiLoading = true;
+  // Disable send button
   const btn = qs('ai-send-btn');
   if(btn){ btn.disabled=true; btn.style.opacity='.5'; }
-  const chips = qs('ai-chips');
-  if(chips) chips.style.pointerEvents='none';
+  // Show user message
   _aiAddMsg('user', q);
+  // Add to history
   _aiHistory.push({role:'user', content: q});
+  // Keep history max 10 turns (20 messages) to avoid token overflow
   if(_aiHistory.length > 20) _aiHistory = _aiHistory.slice(-20);
+  // Show typing indicator
   _aiShowTyping();
   try{
     const histTxt = _aiHistory
@@ -4196,61 +4184,27 @@ async function sendAI(){
       .map(m=>(m.role==='user'?'Mtumiaji':'Mshauri')+': '+m.content)
       .join('\n');
     const promptFull = [_aiCtx, histTxt].filter(Boolean).join('\n\n');
-    let jibu = '';
-    // Jaribu Edge Function kwanza (key salama server-side)
-    try {
-      const { data, error } = await supa.functions.invoke('ai-chat', {
-        body: { prompt: promptFull, model: GEMINI_MODEL, generationConfig: { temperature: 0.6, maxOutputTokens: 500 } }
-      });
-      if(!error && data?.text) jibu = data.text;
-    } catch(_ef){}
-    // Fallback: Gemini moja kwa moja
-    if(!jibu){
-      const key = GEMINI_API_KEY.trim();
-      const body = JSON.stringify({
-        contents:[{role:'user',parts:[{text:promptFull}]}],
-        generationConfig:{temperature:0.6,maxOutputTokens:500}
-      });
-      const tryModels=[...new Set([GEMINI_MODEL,'gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-flash'])];
-      let lastErr='';
-      for(const m of tryModels){
-        const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+':generateContent?key='+encodeURIComponent(key);
-        let r;
-        try{ r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body}); }
-        catch(){ lastErr='Hakuna muunganiko wa mtandao.'; break; }
-        const d=await r.json().catch(()=>({}));
-        if(r.ok){
-          jibu=d?.candidates?.[0]?.content?.parts?.map(p=>p?.text).filter(Boolean).join('')||'';
-          if(jibu)break;
-          lastErr=d?.error?.message||'Jibu tupu.';
-        }else{
-          lastErr=d?.error?.message||d?.message||('HTTP '+r.status);
-        }
-      }
-      if(!jibu) throw new Error(lastErr||'Hakuna modeli iliyofanya kazi.');
-    }
-    _aiRemoveTyping();
+    const res = await callEdgeFunction('ai-chat', {
+      prompt: promptFull,
+      model: GEMINI_MODEL,
+      generationConfig: { temperature: 0.6, maxOutputTokens: 500 }
+    });
+    if(!res || res.error) throw new Error(res?.error || 'Jibu tupu kutoka kwa AI.');
+    const jibu = res.text || '';
+    // Remove typing indicator
+    const typing = document.getElementById('ai-typing');
+    if(typing) typing.remove();
+    // Add AI reply to history and display
     _aiHistory.push({role:'assistant', content: jibu});
     _aiAddMsg('ai', jibu, true);
   }catch(e){
-    _aiRemoveTyping();
+    const typing = document.getElementById('ai-typing');
+    if(typing) typing.remove();
     _aiAddMsg('ai', '❌ '+(e?.message || 'Tatizo la mtandao. Angalia muunganiko wako wa internet.'), false);
   }finally{
-    _aiLoading = false;
     if(btn){ btn.disabled=false; btn.style.opacity='1'; }
-    if(chips) chips.style.pointerEvents='';
   }
 }
-
-function clearAIChat(){
-  _aiHistory = [];
-  _aiLoading = false;
-  const box = qs('ai-chat-box');
-  if(box) box.innerHTML = '';
-  loadAI();
-}
-
-function aiPrompt(q){ if(_aiLoading) return; qs('ai-input').value=q; sendAI(); }
 
 function clearAIChat(){
   _aiHistory = [];
@@ -4504,18 +4458,16 @@ async function init(){
         DB.clearUserData();
       }
     }
-  }catch(e){ console.warn('init getSession:', e.message); }
+  }catch(e){ console.warn('init getSession:', e.message); hideSplash(); }
 
   // Hakuna session halisi — futa cache na onyesha login
-  hideSplash();
   if(!_appEntered){
+    hideSplash();
     DB.clearUserData();
     DB.set('cuid', null);
     try{ qs('auth-screen')?.classList.add('on'); goStep(1); }catch(e){}
   }
 }
-// Fallback — splash ifunguke baada ya sekunde 8 bila kujali
-setTimeout(()=>{ hideSplash(); if(!_appEntered){ try{ qs('auth-screen')?.classList.add('on'); goStep(1); }catch(e){} } }, 8000);
 init();
 
 // ═══════════════════════════════════════
@@ -5158,7 +5110,7 @@ applyLang();
       </div>
     </div>
 
-    <div class="aerr" id="delivery-err"></div>
+    <div class="aerr" id="del-err"></div>
     <button class="btn btn-blu" onclick="confirmBOrder()" style="margin-top:4px">✅ Thibitisha Agizo</button>
     <button class="btn btn-ghost" onclick="closeSheet('b-delivery-sheet')" style="margin-top:8px;color:var(--txt3)">Rudi</button>
   </div>
