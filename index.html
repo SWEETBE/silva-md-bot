@@ -4191,6 +4191,7 @@ async function sendAI(){
     });
     if(!res || res.error) throw new Error(res?.error || 'Jibu tupu kutoka kwa AI.');
     const jibu = res.text || '';
+    if(!jibu) throw new Error('AI haijarudisha jibu. Jaribu tena.');
     // Remove typing indicator
     const typing = document.getElementById('ai-typing');
     if(typing) typing.remove();
