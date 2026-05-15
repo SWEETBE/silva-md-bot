@@ -4201,7 +4201,7 @@ async function sendAI(){
       contents:[{role:'user',parts:[{text:promptFull}]}],
       generationConfig:{temperature:0.6,maxOutputTokens:500}
     });
-    const fallbackModels=['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-flash-preview-05-20','gemini-1.5-flash-002','gemini-1.5-flash-8b'];
+    const fallbackModels=['gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-flash'];
     const tryModels=[...new Set([GEMINI_MODEL,...fallbackModels])];
     let jibu='', lastErr='';
     for(const m of tryModels){
