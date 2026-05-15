@@ -4087,9 +4087,9 @@ async function _doRating(id){
 // ══════════════════════════════
 // AI MSHAURI
 // ══════════════════════════════
-// ── AI chat history (ndani ya session) ──
 let _aiHistory = [];
 let _aiCtx = '';
+let _aiLoading = false;
 
 function _aiAddMsg(role, text, isHtml=false){
   const box = qs('ai-chat-box');
@@ -4118,11 +4118,15 @@ function _aiAddMsg(role, text, isHtml=false){
   box.scrollTop = box.scrollHeight;
 }
 
+function _aiRemoveTyping(){
+  document.querySelectorAll('.ai-typing-indicator').forEach(el=>el.remove());
+}
+
 function _aiShowTyping(){
   const box = qs('ai-chat-box');
   if(!box) return;
   const div = document.createElement('div');
-  div.id = 'ai-typing';
+  div.className = 'ai-typing-indicator';
   div.style.cssText = 'display:flex;gap:8px;align-items:flex-start';
   div.innerHTML = `<div style="width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,#a78bfa,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">🤖</div><div style="padding:10px 14px;background:var(--bg2);border-radius:4px 14px 14px 14px;border:1px solid var(--sur2);display:flex;gap:5px;align-items:center"><span style="width:7px;height:7px;background:var(--pur);border-radius:50%;animation:bounce 1.2s .0s infinite alternate"></span><span style="width:7px;height:7px;background:var(--pur);border-radius:50%;animation:bounce 1.2s .2s infinite alternate"></span><span style="width:7px;height:7px;background:var(--pur);border-radius:50%;animation:bounce 1.2s .4s infinite alternate"></span></div>`;
   box.appendChild(div);
@@ -4172,20 +4176,19 @@ Help the customer make smart buying decisions. Keep replies concise (3–6 lines
 }
 
 async function sendAI(){
+  if(_aiLoading) return;
   const inp = qs('ai-input');
   const q = inp.value.trim();
   if(!q) return;
   inp.value = '';
-  // Disable send button
+  _aiLoading = true;
   const btn = qs('ai-send-btn');
   if(btn){ btn.disabled=true; btn.style.opacity='.5'; }
-  // Show user message
+  const chips = qs('ai-chips');
+  if(chips) chips.style.pointerEvents='none';
   _aiAddMsg('user', q);
-  // Add to history
   _aiHistory.push({role:'user', content: q});
-  // Keep history max 10 turns (20 messages) to avoid token overflow
   if(_aiHistory.length > 20) _aiHistory = _aiHistory.slice(-20);
-  // Show typing indicator
   _aiShowTyping();
   try{
     const histTxt = _aiHistory
@@ -4201,29 +4204,28 @@ async function sendAI(){
     if(!res || res.error) throw new Error(res?.error || 'Jibu tupu kutoka kwa AI.');
     const jibu = res.text || '';
     if(!jibu) throw new Error('AI haijarudisha jibu. Jaribu tena.');
-    // Remove typing indicator
-    const typing = document.getElementById('ai-typing');
-    if(typing) typing.remove();
-    // Add AI reply to history and display
+    _aiRemoveTyping();
     _aiHistory.push({role:'assistant', content: jibu});
     _aiAddMsg('ai', jibu, true);
   }catch(e){
-    const typing = document.getElementById('ai-typing');
-    if(typing) typing.remove();
+    _aiRemoveTyping();
     _aiAddMsg('ai', '❌ '+(e?.message || 'Tatizo la mtandao. Angalia muunganiko wako wa internet.'), false);
   }finally{
+    _aiLoading = false;
     if(btn){ btn.disabled=false; btn.style.opacity='1'; }
+    if(chips) chips.style.pointerEvents='';
   }
 }
 
 function clearAIChat(){
   _aiHistory = [];
+  _aiLoading = false;
   const box = qs('ai-chat-box');
   if(box) box.innerHTML = '';
   loadAI();
 }
 
-function aiPrompt(q){ qs('ai-input').value=q; sendAI(); }
+function aiPrompt(q){ if(_aiLoading) return; qs('ai-input').value=q; sendAI(); }
 
 // Badilisha quick prompts kulingana na role
 function updateAIChips(){
