@@ -4196,29 +4196,40 @@ async function sendAI(){
       .map(m=>(m.role==='user'?'Mtumiaji':'Mshauri')+': '+m.content)
       .join('\n');
     const promptFull = [_aiCtx, histTxt].filter(Boolean).join('\n\n');
-    const key = GEMINI_API_KEY.trim();
-    const body = JSON.stringify({
-      contents:[{role:'user',parts:[{text:promptFull}]}],
-      generationConfig:{temperature:0.6,maxOutputTokens:500}
-    });
-    const fallbackModels=['gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-flash'];
-    const tryModels=[...new Set([GEMINI_MODEL,...fallbackModels])];
-    let jibu='', lastErr='';
-    for(const m of tryModels){
-      const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+':generateContent?key='+encodeURIComponent(key);
-      let r;
-      try{ r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body}); }
-      catch(fe){ lastErr='Hakuna muunganiko wa mtandao.'; break; }
-      const d=await r.json().catch(()=>({}));
-      if(r.ok){
-        jibu=d?.candidates?.[0]?.content?.parts?.map(p=>p?.text).filter(Boolean).join('')||'';
-        if(jibu)break;
-        lastErr=d?.error?.message||'Jibu tupu.';
-      }else{
-        lastErr=d?.error?.message||d?.message||('HTTP '+r.status);
+    let jibu = '';
+    // Jaribu Edge Function kwanza (key iko server-side), fallback Gemini direct
+    try {
+      const { data, error } = await supa.functions.invoke('ai-chat', {
+        body: { prompt: promptFull, model: GEMINI_MODEL, generationConfig: { temperature: 0.6, maxOutputTokens: 500 } }
+      });
+      if(error) throw new Error(error.message);
+      if(data?.text) jibu = data.text;
+    } catch(_ef){}
+    // Fallback: Gemini moja kwa moja
+    if(!jibu){
+      const key = GEMINI_API_KEY.trim();
+      const body = JSON.stringify({
+        contents:[{role:'user',parts:[{text:promptFull}]}],
+        generationConfig:{temperature:0.6,maxOutputTokens:500}
+      });
+      const tryModels=[...new Set([GEMINI_MODEL,'gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-flash'])];
+      let lastErr='';
+      for(const m of tryModels){
+        const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+':generateContent?key='+encodeURIComponent(key);
+        let r;
+        try{ r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body}); }
+        catch(){ lastErr='Hakuna muunganiko wa mtandao.'; break; }
+        const d=await r.json().catch(()=>({}));
+        if(r.ok){
+          jibu=d?.candidates?.[0]?.content?.parts?.map(p=>p?.text).filter(Boolean).join('')||'';
+          if(jibu)break;
+          lastErr=d?.error?.message||'Jibu tupu.';
+        }else{
+          lastErr=d?.error?.message||d?.message||('HTTP '+r.status);
+        }
       }
+      if(!jibu) throw new Error(lastErr||'Hakuna modeli iliyofanya kazi.');
     }
-    if(!jibu) throw new Error(lastErr||'Hakuna modeli iliyofanya kazi.');
     _aiRemoveTyping();
     _aiHistory.push({role:'assistant', content: jibu});
     _aiAddMsg('ai', jibu, true);
