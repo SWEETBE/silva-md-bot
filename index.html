@@ -821,7 +821,7 @@ setTimeout(hideSplash, 6000);
             <div style="font-size:11px;color:rgba(255,255,255,.45);margin-top:4px;display:flex;align-items:center;gap:6px">
               <span style="width:7px;height:7px;background:#00c47d;border-radius:50%;display:inline-block;box-shadow:0 0 8px rgba(0,196,125,.8);flex-shrink:0"></span>
               <span>🏪</span>
-              <span id="s-biz" style="color:rgba(255,255,255,.6)">Biashara yako</span>
+              <span id="s-biz-hdr" style="color:rgba(255,255,255,.6)">Biashara yako</span>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
@@ -2826,7 +2826,7 @@ async function sNav(pg,btn){
 function loadSDash(){
   if(!CU)return;
   set('s-name',CU.fname+' '+CU.lname);
-  set('s-biz',CU.bizname||'Biashara yako');
+  set('s-biz-hdr',CU.bizname||'Biashara yako');
   const B=DB.get('bidhaa',[]).filter(b=>b.oid===CU.id);
   // Hesabu mauzo YOTE yaliyokamilika: POS (method!=Agizo) + maagizo ya done
   const allM=DB.get('mauzo',[]).filter(m=>m.oid===CU.id);
@@ -3764,12 +3764,12 @@ async function confirmBOrder(){
   if((_selectedDelivery.type==='self'||_selectedDelivery.type==='boda')){
     const addr=qs('del-addr-input')?.value?.trim()||'';
     if(!addr){
-      if(qs('del-err')) qs('del-err').textContent='⚠ Weka anwani yako kamili!';
+      if(qs('delivery-err')) qs('delivery-err').textContent='⚠ Weka anwani yako kamili!';
       return;
     }
     _selectedDelivery.address=addr;
   }
-  if(qs('del-err')) qs('del-err').textContent='';
+  if(qs('delivery-err')) qs('delivery-err').textContent='';
 
   const itemsTotal = bcart.reduce((s,c)=>s+c.bei*c.qty,0);
   const deliveryFee = _selectedDelivery.fee||0;
@@ -5111,7 +5111,7 @@ applyLang();
       </div>
     </div>
 
-    <div class="aerr" id="del-err"></div>
+    <div class="aerr" id="delivery-err"></div>
     <button class="btn btn-blu" onclick="confirmBOrder()" style="margin-top:4px">✅ Thibitisha Agizo</button>
     <button class="btn btn-ghost" onclick="closeSheet('b-delivery-sheet')" style="margin-top:8px;color:var(--txt3)">Rudi</button>
   </div>
